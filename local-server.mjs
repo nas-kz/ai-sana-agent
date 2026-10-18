@@ -1,0 +1,15 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import http from 'node:http';
+import {fileURLToPath,pathToFileURL} from 'node:url';
+import ts from 'typescript';
+import {build} from 'esbuild';
+const root=path.dirname(fileURLToPath(import.meta.url));process.chdir(root);
+const out=path.join(root,'.local-app');fs.mkdirSync(out,{recursive:true});
+await build({stdin:{contents:"import React from 'react';import {createRoot} from 'react-dom/client';import Page from './page';createRoot(document.getElementById('root')).render(<Page/>);",resolveDir:root,loader:'tsx'},bundle:true,platform:'browser',format:'iife',jsx:'automatic',outfile:path.join(out,'app.js'),define:{'process.env.NODE_ENV':'"production"'},minify:true});
+let code=fs.readFileSync('route.ts','utf8').replace(/^import chunks .*;$/m,"const chunks=JSON.parse(fs.readFileSync(new URL('../chunks.json',import.meta.url),'utf8')); ").replace(/^import pages .*;$/m,"const pages=JSON.parse(fs.readFileSync(new URL('../pages.json',import.meta.url),'utf8')); ").replace("import {env} from 'cloudflare:workers';","import fs from 'node:fs';const env=process.env;");
+fs.writeFileSync(path.join(out,'api.mjs'),ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText);
+const {POST}=await import(pathToFileURL(path.join(out,'api.mjs')).href);
+const html='<!doctype html><html lang="kk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI-Sana • 3-кезең кеңесшісі</title><link rel="stylesheet" href="/style.css"></head><body><div id="root"></div><script src="/app.js" defer></script></body></html>';
+const server=http.createServer(async(req,res)=>{try{const url=new URL(req.url,'http://127.0.0.1');if(url.pathname==='/api/chat'&&req.method==='POST'){let body='';for await(const chunk of req){body+=chunk;if(body.length>24000){res.writeHead(413);res.end();return;}}const reply=await POST(new Request(url,{method:'POST',headers:{'Content-Type':'application/json'},body}));res.writeHead(reply.status,Object.fromEntries(reply.headers));res.end(await reply.text());return;}let file,type;if(url.pathname==='/'){res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end(html);return;}if(url.pathname==='/app.js'){file=path.join(out,'app.js');type='text/javascript';}else if(url.pathname==='/style.css'){file=path.join(root,'globals.css');type='text/css';}else if(/^\/docs\/source-[1-4]\.pdf$/.test(url.pathname)){file=path.join(root,path.basename(url.pathname));type='application/pdf';}else{res.writeHead(404);res.end('Not found');return;}res.writeHead(200,{'Content-Type':type});fs.createReadStream(file).pipe(res);}catch{res.writeHead(500);res.end('Server error');}});
+server.on('error',e=>{console.error(e.message);process.exitCode=1});if(!process.argv.includes('--build-only'))server.listen(5180,'127.0.0.1',()=>console.log('AI-Sana ready: http://127.0.0.1:5180/'));

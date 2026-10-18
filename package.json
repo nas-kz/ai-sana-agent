@@ -1,0 +1,19 @@
+{
+  "name": "ai-sana-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "start": "node --env-file=.env.local local-server.mjs",
+    "build": "node local-server.mjs --build-only"
+  },
+  "dependencies": {
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "esbuild": "0.28.2",
+    "typescript": "5.9.3"
+  }
+}
